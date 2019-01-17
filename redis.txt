@@ -1,5 +1,49 @@
 redis的数据类型:
-    list, set, zset, hash
+    string, list(链表), set(集合), zset(sortedSet 有序集合), hash(hash类型)
+
+
+redis分布式锁:
+    服务端角度：
+        1.先用setNX去争抢锁, 抢到之后再用expire给锁设置一个过期时间防止锁忘记释放
+        2.如果在setNx之后执行expire之前进程意外crash了?
+            可以使用set和expire合成一条指令
+        3.假如redis里有1亿个key，其中有10W个是以一个固定的前缀开头的，如何找出来他们?
+            可以使用keys指令扫出指定模式的key列表
+        4.如果这个redis正在给线上使用，keys指令会有什么问题
+            因为redis是单线程的，所以服务会阻塞一段时间，当查询完以后，服务才可以恢复，可以使用scan指令，可以无阻塞的取出key，但是会有一定的重复，
+                在客户端去重，但是整体花费的时间要比keys指令用时长
+        5.如何用redis做异步队列？
+            一般使用list结构作为队列，rpush生产消息，lpop消费消息，在没有消息的时候，使用sleep阻塞一会再试
+        6.可不可以不用sleep？
+            list有个指令blpop，在没有消息的时候它会阻塞住，直到消息的到来
+        7.能不能生产一次消费多次呢？
+            使用pub/sub主题订阅者模式，可以实现1:N的消息队列
+        8.pub/sub有什么缺点？
+        当生产者下线的时候，生产的消息会被清楚掉，得使用专业的消息队列，robbitMq，activeMq
+
+redis并发竞争的问题：
+    使用java锁来使程序与redis进行通信
+
+
+redis如何做持久化的：
+    RDB：
+        手动触发：
+            bgsave  create一个子进程，由子进程来create rdb文件，父进程则继续处理请求
+            save    会阻塞进程
+        自动触发：
+            save m n    指定当m秒内发生n次变化时，会触发bgsave
+    AOF：
+
+
+
+
+redis的数据淘汰策略：
+    1.volatile-lru 从已设置过期时间的数据集中挑选最近最少使用的数据淘汰
+    2.volatile-ttl 从已设置过期时间的数据集中挑选将要过期的数据进行淘汰
+    3.volatile-random 从已设置过期时间的数据集中任意选择数据淘汰
+    4.allkeys-lru 从数据集中挑选最近最少使用的数据淘汰
+    5.allkeys-random 从数据集中任意选择数据进行淘汰
+    6.no-enviction 禁止驱逐数据
 
 
 缓存穿透：
