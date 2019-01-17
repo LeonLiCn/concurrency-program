@@ -26,15 +26,36 @@ redis并发竞争的问题：
 
 
 redis如何做持久化的：
-    RDB：
+    RDB：进程数据写入文件
         手动触发：
             bgsave  create一个子进程，由子进程来create rdb文件，父进程则继续处理请求
             save    会阻塞进程
         自动触发：
             save m n    指定当m秒内发生n次变化时，会触发bgsave
-    AOF：
+        执行流程：
+            1.父进程首先判断当前是否在执行save、bgsave/bgrewriteaof的子进程，如果有则直接返回
+            2.父进程执行fork操作create子进程，这个过程父进程是阻塞的，不能执行来自client的任何命令
+            3.父进程fork后，bgsave会返回background saving started 信息不再阻塞父进程
+            4.子进程creater RDB文件，根据父进程的内存快照生成临时的快照文件，完成后对原有的文件进行原子替换
+            5.子进程发送信号给父进程表示完成，父进程更新统计信息
+        优点：
+            体积小、适合全量复制、恢复速度比aof快、对性能影响小、rdb文件需要满足特定的格式，兼容性差(老版本的redis不兼容新版本的rdb文件)
+        缺点：
+            做不到实时持久化
 
-
+    AOF：将Redis执行的每次写命令记录到单独的日志文件中
+        默认开启RDB，关闭AOF，配置文件中配置开启：appendonly yes
+        执行流程：
+            命令追加(append) 将redis的写命令追加到缓冲区aof_buf
+            文件写入(write)和文件同步(sync)：根据不同的同步策略将aof_buf中的内容同步到硬盘
+            文件重写(rewrite)定期重写aof文件，达到压缩的目的
+            文件重写的触发：
+                手动触发：bgrewriteaof 同rdb的bgsave一样fork操作
+                自动触发：根据auto-aof-rewrite-min-size和auto-aof-rewrite-percentage参数，以及aof_current_size和aof_base_size状态确定触发时机
+        优点：
+            支持秒级持久化，兼容性好
+        缺点：
+            文件大、恢复速度慢、对性能影响大
 
 
 redis的数据淘汰策略：
