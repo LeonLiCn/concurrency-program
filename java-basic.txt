@@ -1,0 +1,33 @@
+HashMap的底层实现原理：
+    jdk7：
+        采用的数据结构： 数组(主) + 单向链表(副)
+            发生hash碰撞后，新的entry放到头节点，老的entry加入链表
+        主要元素：Entry(继承自Map.Entry)包括元素：key，value，next(指向下一个Entry元素)
+        重要变量：
+            capacity(容量)：hashmap中数组的长度
+                默认16 = 1 << 4,最大容量 2的30次方
+            loadFactory(加载因子)：
+                默认0.75f
+                加载因子越大：填满的元素越多，空间利用率高，hash碰撞率变大，链表变长，查找效率变低
+                加载因子越小：hash碰撞机率小，链表变短，查找效率高，频繁扩容，浪费性能
+            threshold(扩容阀值)：= capacity * loadFactory
+                当size >= threshold，进行resize(扩容)操作
+        源码分析：
+            1.真正初始化HashMap时，是第一次调用put()方法时，调用inflateTable()
+            2.当key==null时，将该 key-value 的存储位置规定为数组table 中的第1个位置，即table[0]
+            3.当添加new entry时，size >= threshold ,进行resize操作，扩容的长度是原table.length * 2，若旧容量到达最大值，则把threshold变成Integer.MAX_VALUE
+            4.为何不是线程安全的？transfer(newTable),扩容时容易形成闭环链表，造成死循环(jdk8不会存在这个问题，因为是正序遍历旧数组，在新链表的尾部追加)
+
+    jdk8:
+        采用的数据结构： 数组(主) + 链表(副) + 红黑树(副)
+            发生hash碰撞后，新的node添加到链表/树的尾部
+        主要元素：Node(与1.7比较只是名字换了)，红黑树实现类 TreeNode
+        重要变量：
+            新增了红黑树的变量
+        源码分析(1.7和1.8的区别)：
+            1.初始化时调用resize()扩容方法
+            2.hash值计算下标的算法不同
+            3.引入了红黑树
+            4.插入数据的方法，尾插法
+            5.扩容后存储位置的计算不同(原位置 or 原位置 + 旧容量)
+            6.扩容前插入，转移数据时统一计算(1.8),扩容后插入(1.7)

@@ -1,5 +1,5 @@
 redis的数据类型:
-    string, list(链表), set(集合), zset(sortedSet 有序集合), hash(hash类型)
+    string, list(链表), set(集合), zset(sortedSet 有序集合), hash(包含键值对的无序散列表)
 
 
 redis分布式锁:
