@@ -10,4 +10,5 @@
             1.采用消息队列缓存请求
             2.读写分离：
                 2.1对于读多写少的情况，可以利用缓存分担数据库的压力
-                2.2利用缓存应对写请求，可以在redis里维护一个 AtomicInteger对象，进行
+                2.2利用缓存应对写请求，可以在redis里维护一个 AtomicInteger对象，把AtomicInteger当作key，uid当作value，商品数量就是AtomicInteger的最大值，然后在启动多个工作线程，
+                    使用LPOP key读取秒杀成功的uid，进行后续的处理
