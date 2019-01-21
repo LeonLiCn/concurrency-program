@@ -31,3 +31,57 @@ HashMap的底层实现原理：
             4.插入数据的方法，尾插法
             5.扩容后存储位置的计算不同(原位置 or 原位置 + 旧容量)
             6.扩容前插入，转移数据时统一计算(1.8),扩容后插入(1.7)
+
+ConCurrentHashMap的底层实现原理：
+    jdk7:
+        数据结构：Segment[] + Entry + Unsafe, Segment实现了可重入锁 ReentrentLock
+        源码分析：
+            put():
+                1.先通过key的 rehash值的高位 和 segments数组大小-1 相与得到在 segments中的位置
+                2.然后在通过 key的rehash值 和 table数组大小-1 相与得到在table中的位置
+                3.没获取到segment锁的线程：
+                    1)确定table[i]的位置
+                    2)通过first节点便利链表找有没有相同的key
+                    3)在进行1),2)期间不断的进行自旋来获取锁，超过64次之后挂起
+            get():
+                1.由于Entry类的value变量是 volatile的，所以保证了 写操作 是先于 读操作 的，在因为volatile的内存可见性，保证了他获取到的值是最新的
+                2.如果get()到的是null值才去加锁
+            resize():扩容方法
+                和HashMap的resize()相同，或得了锁之后，单线程去做扩容
+            size():
+                1.采用不加锁的方式计算两次，如果两次的结果一样，则返回
+                2.如果不一样，则把所有的segment加锁，重新计算segment的count的和
+
+    jdk8:
+        数据结构：Node + Synchronized + CAS + Unsafe, 通过CAS和Synchronized替代了ReentrentLock的锁，降低了锁的粒度，并且不是每次都要加锁，只有在CAS尝试失败了才加锁
+        源码分析：
+            sizeCtl：第一次put()时，将sizeCtl置为-1，表明在初始化
+            put():
+                1.先根据key的rehash定位到table[i],拿到table[i]的first node
+                2.if(first == null)，则用CAS添加
+                3.if(first != null && first.hash == -1),则说明正在扩容，帮助一起扩容
+                4.if(first != null && first.hash != -1),则判断是红黑树还是链表，通过first遍历节点，在尾部插入
+            get():
+                同1.7
+            resize():
+                支持并发迁移节点，从old数组的尾部开始，如果该桶被其他线程处理过了，就创建一个ForwardingNode放到该桶的first Node，hash值为-1，其他线程判断hash == -1，就知道被处理过了
+
+线程：
+    sleep():让当前线程睡眠一段时间后在执行
+    join():控制多个线程的执行次序，两个线程A，B，在B线程中调用A.join(),则需要等A执行完了，B才可以执行
+    yield():让当前线程让出线程调度器的时间片，但也有可能刚刚让出，又抢到了
+
+    CountDownLatch:允许一个或多个线程等待其他线程操作完成 new CountDownLatch(2);countDown()减1
+    CyclicBarrier:new CyclicBarrier(2); 让一组线程到达一个屏障点时被阻塞，直到最后一个线程到达时，屏障才会开门，所有被屏障拦截的线程才会继续执行;到达屏障点，调用await()方法,
+        参数表示屏障拦截线程的数量。new CyclicBarrier(2, ThreadA); 屏障开启后 先执行ThreadA
+    Semaphore：控制并发线程数，new Semaphore(10); 参数：限制的线程数量，acquire()获取线程许可证, tryAcquire()尝试获取线程许可证，release()归还许可证
+    Exchanger：线程间的数据交换
+
+锁机制:
+    volatile: 禁止重排序和内存可见性
+    synchronized：
+    CAS：使用非阻塞无锁算法保证同步特性，底层使用unsafe.compareAndSwap()方法
+        CAS操作需要传入两个参数，一个旧值(期望操作前的值)和一个新值，在操作前先比较旧值有没有发生变化，如果没发生变化，才交换为新值，如果变化了，则不交换
+    ABA问题：加版本号或时间戳做对比
+
+
